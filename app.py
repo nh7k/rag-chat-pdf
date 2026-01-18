@@ -3,7 +3,7 @@ from PyPDF2 import PdfReader
 import io
 from datetime import datetime
 
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter  # ✅ FIXED
 from langchain_community.vectorstores import FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -89,7 +89,7 @@ Answer:
 
     # ✅ CORRECT MODEL (NO 404, NO DEPRECATION)
     llm = ChatGoogleGenerativeAI(
-        model="gemini-2.0-flash",
+        model="gemini-2.0-flash-exp",  # ✅ Updated to stable model
         temperature=0.2,
         max_output_tokens=1024,
         google_api_key=api_key
@@ -171,4 +171,5 @@ if st.session_state.history:
 
     for q, a in reversed(st.session_state.history):
         st.markdown(f"**❓ {q}**")
-        st.markdown(a)
+        st.markdown(f"{a}")
+        st.divider()
