@@ -1,0 +1,32 @@
+# Core Streamlit
+streamlit==1.43.2
+
+# LangChain packages
+langchain==0.3.20
+langchain-core==0.3.45
+langchain-google-genai==2.1.0
+langchain-community==0.3.19
+langchain-huggingface==0.1.2
+
+# Vector store
+faiss-cpu==1.10.0
+
+# PDF processing
+PyPDF2==3.0.1
+
+# Google AI
+google-ai-generativelanguage==0.6.17
+
+# Data processing
+pandas==2.2.3
+
+# Embeddings & NLP - CORRECT COMPATIBLE VERSIONS
+sentence-transformers==2.7.0
+transformers==4.44.2
+tokenizers==0.19.1
+
+# Additional utilities
+wikipedia==1.4.0
+
+# Required dependencies
+huggingface-hub==0.25.0
