@@ -2,6 +2,7 @@ import streamlit as st
 from PyPDF2 import PdfReader
 import io
 from datetime import datetime
+import time
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
@@ -10,7 +11,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 
 # ---------------- CONFIG ----------------
 st.set_page_config(page_title="Chat with PDFs", layout="wide")
-MAX_CALLS_PER_MINUTE = 15
+MAX_CALLS_PER_MINUTE = 10  # Reduced from 15
 
 # ---------------- SESSION STATE ----------------
 if "vector_store" not in st.session_state:
@@ -25,21 +26,31 @@ if "history" not in st.session_state:
     st.session_state.history = []
 if "llm" not in st.session_state:
     st.session_state.llm = None
+if "last_call_time" not in st.session_state:
+    st.session_state.last_call_time = None
 
 # ---------------- RATE LIMIT ----------------
 def can_call_api():
     now = datetime.now()
     elapsed = (now - st.session_state.minute_start).total_seconds()
     
+    # Reset counter after 1 minute
     if elapsed >= 60:
         st.session_state.api_calls = 0
         st.session_state.minute_start = now
         elapsed = 0
 
+    # Check rate limit
     if st.session_state.api_calls >= MAX_CALLS_PER_MINUTE:
         remaining = 60 - int(elapsed)
         st.error(f"❌ Rate limit reached. Wait {remaining} seconds.")
         return False
+
+    # Add 2-second delay between calls to avoid quota issues
+    if st.session_state.last_call_time:
+        time_since_last = (now - st.session_state.last_call_time).total_seconds()
+        if time_since_last < 2:
+            time.sleep(2 - time_since_last)
 
     return True
 
@@ -69,8 +80,8 @@ def read_pdfs(pdfs):
 
 def build_vector_store(text):
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000,
-        chunk_overlap=150,
+        chunk_size=800,  # Reduced from 1000
+        chunk_overlap=100,  # Reduced from 150
         length_function=len,
         separators=["\n\n", "\n", " ", ""]
     )
@@ -84,42 +95,70 @@ def build_vector_store(text):
 
 # ---------------- GEMINI LLM ----------------
 def initialize_llm(api_key):
-    """Initialize LLM only once and cache in session state"""
-    if st.session_state.llm is None or st.session_state.get('current_api_key') != api_key:
-        st.session_state.llm = ChatGoogleGenerativeAI(
-            model="gemini-1.5-flash",
-            temperature=0.3,
-            max_output_tokens=512,
-            google_api_key=api_key
-        )
-        st.session_state.current_api_key = api_key
-    return st.session_state.llm
+    """Initialize LLM with error handling"""
+    try:
+        if st.session_state.llm is None or st.session_state.get('current_api_key') != api_key:
+            st.session_state.llm = ChatGoogleGenerativeAI(
+                model="gemini-1.5-flash",  # Stable model
+                temperature=0.2,  # More focused answers
+                max_output_tokens=256,  # Reduced from 512
+                google_api_key=api_key,
+                request_options={"timeout": 30}
+            )
+            st.session_state.current_api_key = api_key
+        return st.session_state.llm
+    except Exception as e:
+        st.error(f"Failed to initialize LLM: {str(e)}")
+        return None
 
 def get_answer(llm, question, context):
-    """Generate answer with minimal token usage"""
-    # Truncate context if too long (reduce tokens)
-    max_context_length = 3000
+    """Generate answer with error handling and retry logic"""
+    if llm is None:
+        return "Error: LLM not initialized"
+    
+    # Truncate context to save tokens
+    max_context_length = 2000  # Reduced from 3000
     if len(context) > max_context_length:
         context = context[:max_context_length] + "..."
     
-    prompt = f"""Answer based ONLY on this context. Be concise.
-If not found, say: "Not found in documents."
+    prompt = f"""Answer briefly using ONLY this context.
+If not found, say: "Not in documents."
 
 Context: {context}
 
-Question: {question}
-
-Answer:"""
+Q: {question}
+A:"""
     
-    try:
-        response = llm.invoke(prompt)
-        return response.content
-    except Exception as e:
-        return f"Error: {str(e)}"
+    max_retries = 2
+    for attempt in range(max_retries):
+        try:
+            response = llm.invoke(prompt)
+            return response.content
+        except Exception as e:
+            error_msg = str(e).lower()
+            
+            # Handle quota exceeded
+            if "quota" in error_msg or "429" in error_msg:
+                if attempt < max_retries - 1:
+                    st.warning(f"⏳ Quota limit hit. Waiting 5 seconds... (Attempt {attempt + 1}/{max_retries})")
+                    time.sleep(5)
+                    continue
+                else:
+                    return "❌ API quota exceeded. Please wait a minute and try again, or check your API key billing."
+            
+            # Handle other rate limits
+            elif "rate" in error_msg:
+                return "❌ Rate limit reached. Please wait 60 seconds before asking again."
+            
+            # Handle other errors
+            else:
+                return f"❌ Error: {str(e)[:100]}"
+    
+    return "❌ Failed after multiple retries. Please try again later."
 
 # ---------------- UI ----------------
 st.title("📚 Chat with PDFs")
-st.caption("💡 Optimized for minimal API calls")
+st.caption("💡 Optimized for Gemini Free Tier")
 
 with st.sidebar:
     st.header("⚙️ Setup")
@@ -132,6 +171,8 @@ with st.sidebar:
     
     if api_key:
         st.success("✅ API Key provided")
+    else:
+        st.info("👆 Enter your API key to start")
     
     st.markdown("[🔗 Get API Key](https://aistudio.google.com/app/apikey)")
     st.divider()
@@ -143,7 +184,7 @@ with st.sidebar:
         help="Upload one or more PDF files"
     )
 
-    if st.button("🚀 Process PDFs", type="primary"):
+    if st.button("🚀 Process PDFs", type="primary", disabled=not api_key):
         if not api_key:
             st.error("⚠️ Please enter your API key first")
         elif not pdfs:
@@ -162,11 +203,13 @@ with st.sidebar:
                         st.session_state.processed = True
                         
                         # Initialize LLM after processing
-                        initialize_llm(api_key)
-                        
-                        char_count = len(text)
-                        st.success(f"✅ Successfully processed {len(pdfs)} PDF(s)")
-                        st.info(f"📊 Extracted {char_count:,} characters")
+                        llm = initialize_llm(api_key)
+                        if llm:
+                            char_count = len(text)
+                            st.success(f"✅ Successfully processed {len(pdfs)} PDF(s)")
+                            st.info(f"📊 Extracted {char_count:,} characters")
+                        else:
+                            st.error("Failed to initialize AI model")
                         
                 except Exception as e:
                     st.error(f"❌ Error: {str(e)}")
@@ -189,6 +232,7 @@ with st.sidebar:
     if st.button("🔄 Reset Counter"):
         st.session_state.api_calls = 0
         st.session_state.minute_start = datetime.now()
+        st.session_state.last_call_time = None
         st.rerun()
 
 # ---------------- CHAT INTERFACE ----------------
@@ -199,7 +243,8 @@ if st.session_state.processed:
     question = st.text_input(
         "💬 Ask a question about your PDFs",
         placeholder="What is this document about?",
-        key="question_input"
+        key="question_input",
+        disabled=not api_key
     )
 
     if question and question.strip():
@@ -213,7 +258,7 @@ if st.session_state.processed:
                     # Retrieve relevant documents
                     docs = st.session_state.vector_store.similarity_search(
                         question, 
-                        k=3  # Reduced from 4 to minimize context size
+                        k=2  # Reduced from 3 to minimize tokens
                     )
                     
                     # Combine document contents
@@ -222,17 +267,21 @@ if st.session_state.processed:
                     # Get or initialize LLM
                     llm = initialize_llm(api_key)
                     
-                    # Get answer
-                    answer = get_answer(llm, question, context)
-                    
-                    # Increment API call counter
-                    st.session_state.api_calls += 1
-                    
-                    # Save to history
-                    st.session_state.history.append((question, answer))
-                    
-                    # Clear input (force rerun)
-                    st.rerun()
+                    if llm:
+                        # Get answer
+                        answer = get_answer(llm, question, context)
+                        
+                        # Update tracking
+                        st.session_state.api_calls += 1
+                        st.session_state.last_call_time = datetime.now()
+                        
+                        # Save to history
+                        st.session_state.history.append((question, answer))
+                        
+                        # Clear input
+                        st.rerun()
+                    else:
+                        st.error("LLM not available")
                     
                 except Exception as e:
                     st.error(f"❌ Error: {str(e)}")
