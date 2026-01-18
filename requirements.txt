@@ -1,3 +1,4 @@
+# ---------------- Core ----------------
 streamlit==1.43.2
 pandas==2.2.3
 
@@ -7,6 +8,7 @@ langchain-core>=0.3.45
 langchain-community>=0.3.19
 langchain-google-genai>=2.1.0
 langchain-huggingface>=0.1.2
+langchain-text-splitters>=0.3.0
 
 # ---------------- Vector DB ----------------
 faiss-cpu==1.10.0
@@ -18,10 +20,19 @@ PyPDF2==3.0.1
 google-ai-generativelanguage==0.6.17
 
 # ---------------- NLP / Embeddings ----------------
-sentence-transformers==3.0.1
-transformers==4.46.0
-tokenizers==0.20.3
+sentence-transformers==3.3.1
+transformers==4.47.1
+tokenizers==0.21.0
 huggingface-hub>=0.25.0
+torch==2.5.1
 
 # ---------------- Utilities ----------------
 wikipedia==1.4.0
+```
+
+
+
+
+**.python-version**
+```
+3.11
