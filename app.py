@@ -3,12 +3,12 @@ from PyPDF2 import PdfReader
 import io
 from datetime import datetime
 
-from langchain_text_splitters import RecursiveCharacterTextSplitter  # ✅ FIXED
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.chains.question_answering import load_qa_chain
 from langchain.prompts import PromptTemplate
+from langchain.chains import LLMChain  # ✅ Modern import
 
 # ---------------- CONFIG ----------------
 st.set_page_config(page_title="Chat with PDFs (Gemini 2)", layout="wide")
@@ -69,9 +69,17 @@ def build_vector_store(text):
 
 # ---------------- GEMINI QA CHAIN ----------------
 @st.cache_resource
-def load_chain(api_key):
-    prompt = PromptTemplate(
-        template="""
+def get_llm(api_key):
+    return ChatGoogleGenerativeAI(
+        model="gemini-2.0-flash-exp",
+        temperature=0.2,
+        max_output_tokens=1024,
+        google_api_key=api_key
+    )
+
+def get_answer(llm, question, context):
+    """Generate answer using LLM with context"""
+    prompt = f"""
 You must answer ONLY using the provided context.
 If the answer is not present, say:
 "I cannot find this information in the documents."
@@ -83,23 +91,9 @@ Question:
 {question}
 
 Answer:
-""",
-        input_variables=["context", "question"]
-    )
-
-    # ✅ CORRECT MODEL (NO 404, NO DEPRECATION)
-    llm = ChatGoogleGenerativeAI(
-        model="gemini-2.0-flash-exp",  # ✅ Updated to stable model
-        temperature=0.2,
-        max_output_tokens=1024,
-        google_api_key=api_key
-    )
-
-    return load_qa_chain(
-        llm=llm,
-        chain_type="stuff",
-        prompt=prompt
-    )
+"""
+    response = llm.invoke(prompt)
+    return response.content
 
 # ---------------- UI ----------------
 st.title("📚 Chat with PDFs (Gemini 2.0 Flash)")
@@ -149,19 +143,18 @@ if st.session_state.processed:
         elif not can_call_api():
             pass
         else:
+            # Get relevant documents
             docs = st.session_state.vector_store.similarity_search(question, k=4)
-            chain = load_chain(api_key)
+            
+            # Combine document contents
+            context = "\n\n".join([doc.page_content for doc in docs])
+            
+            # Get LLM
+            llm = get_llm(api_key)
 
             with st.spinner("Thinking..."):
-                response = chain(
-                    {
-                        "input_documents": docs,
-                        "question": question
-                    },
-                    return_only_outputs=True
-                )
+                answer = get_answer(llm, question, context)
 
-            answer = response["output_text"]
             st.session_state.history.append((question, answer))
 
 # ---------------- HISTORY ----------------
