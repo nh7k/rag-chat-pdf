@@ -1,28 +1,27 @@
+# ---------------- Core ----------------
+streamlit==1.43.2
+pandas==2.2.3
 
+# ---------------- LangChain ----------------
+langchain>=0.3.45
+langchain-core>=0.3.45
+langchain-community>=0.3.19
+langchain-google-genai>=2.1.0
+langchain-huggingface>=0.1.2
 
+# ---------------- Vector DB ----------------
+faiss-cpu==1.10.0
 
+# ---------------- PDF Processing ----------------
+PyPDF2==3.0.1
 
+# ---------------- Google AI ----------------
+google-ai-generativelanguage==0.6.17
 
+# ---------------- NLP / Embeddings ----------------
+sentence-transformers==2.7.0
+transformers==4.44.2
+huggingface-hub>=0.25.0
 
-# ---------------- Embeddings / NLP ----------------
-
-huggingface-hub>=0.23.0
-
-
-
-
-streamlit
-langchain
-faiss-cpu 
-langchain-core
-langchain-google-genai 
-PyPDF2
-google-ai-generativelanguage
-langchain-community
-pandas
-langchain-huggingface
-
-faiss-cpu
-wikipedia
-sentence-transformers
-transformers
+# ---------------- Utilities ----------------
+wikipedia==1.4.0
