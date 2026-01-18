@@ -1,5 +1,7 @@
 # 📚 PDF RAG Chat Application (Streamlit + Gemini)
 
+#LIVE https://rag-chat-pdf-bmg4jgpz2xhq4o3kdjm456.streamlit.app/
+
 ## 🚀 Overview
 
 This project is a **Retrieval-Augmented Generation (RAG)** based web application that allows users to **upload PDF documents and chat with them** using natural language.
