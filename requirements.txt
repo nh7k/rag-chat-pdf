@@ -1,4 +1,3 @@
-# ---------------- Core ----------------
 streamlit==1.43.2
 pandas==2.2.3
 
@@ -19,8 +18,9 @@ PyPDF2==3.0.1
 google-ai-generativelanguage==0.6.17
 
 # ---------------- NLP / Embeddings ----------------
-sentence-transformers==2.7.0
-transformers==4.44.2
+sentence-transformers==3.0.1
+transformers==4.46.0
+tokenizers==0.20.3
 huggingface-hub>=0.25.0
 
 # ---------------- Utilities ----------------
