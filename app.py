@@ -7,8 +7,6 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.prompts import PromptTemplate
-from langchain.chains import LLMChain  # ✅ Modern import
 
 # ---------------- CONFIG ----------------
 st.set_page_config(page_title="Chat with PDFs (Gemini 2)", layout="wide")
@@ -67,7 +65,7 @@ def build_vector_store(text):
     embeddings = load_embeddings()
     return FAISS.from_texts(chunks, embeddings)
 
-# ---------------- GEMINI QA CHAIN ----------------
+# ---------------- GEMINI QA ----------------
 @st.cache_resource
 def get_llm(api_key):
     return ChatGoogleGenerativeAI(
@@ -79,19 +77,16 @@ def get_llm(api_key):
 
 def get_answer(llm, question, context):
     """Generate answer using LLM with context"""
-    prompt = f"""
-You must answer ONLY using the provided context.
-If the answer is not present, say:
-"I cannot find this information in the documents."
+    prompt = f"""You must answer ONLY using the provided context.
+If the answer is not present, say: "I cannot find this information in the documents."
 
 Context:
 {context}
 
-Question:
-{question}
+Question: {question}
 
-Answer:
-"""
+Answer:"""
+    
     response = llm.invoke(prompt)
     return response.content
 
@@ -143,13 +138,8 @@ if st.session_state.processed:
         elif not can_call_api():
             pass
         else:
-            # Get relevant documents
             docs = st.session_state.vector_store.similarity_search(question, k=4)
-            
-            # Combine document contents
             context = "\n\n".join([doc.page_content for doc in docs])
-            
-            # Get LLM
             llm = get_llm(api_key)
 
             with st.spinner("Thinking..."):
